@@ -7,6 +7,7 @@ import type {
   SlideItem,
   TextRegion,
 } from '../types/slide';
+import { autoSegmentSlideElements } from './elementSegmenter';
 import { detectSlideTextWithGemini } from './geminiVisionEngine';
 import { generateCleanedBackground, loadImageElement, sampleRegionColors } from './inpaintEngine';
 import { detectSlideTextWithOcr } from './ocrEngine';
@@ -222,6 +223,10 @@ export async function processPdfFile(
     }
 
     const cleanedDataUrl = await generateCleanedBackground(originalDataUrl, regions, []);
+    const { baseBackdropDataUrl, elements } = await autoSegmentSlideElements(
+      cleanedDataUrl,
+      'detailed'
+    );
 
     slides.push({
       id: `slide-${Date.now()}-${pageNum}`,
@@ -232,6 +237,8 @@ export async function processPdfFile(
       aspectRatio: canvas.width / canvas.height,
       originalDataUrl,
       cleanedDataUrl,
+      baseBackdropDataUrl,
+      elements,
       backgroundMode: 'cleaned',
       solidBgHex: '#FAF8F5',
       regions,
@@ -300,6 +307,10 @@ export async function processImageFiles(
       }
 
       const cleanedDataUrl = await generateCleanedBackground(originalDataUrl, regions, []);
+      const { baseBackdropDataUrl, elements } = await autoSegmentSlideElements(
+        cleanedDataUrl,
+        'detailed'
+      );
 
       slides.push({
         id: `img-slide-${Date.now()}-${i}`,
@@ -310,6 +321,8 @@ export async function processImageFiles(
         aspectRatio: canvas.width / canvas.height,
         originalDataUrl,
         cleanedDataUrl,
+        baseBackdropDataUrl,
+        elements,
         backgroundMode: 'cleaned',
         solidBgHex: '#FAF8F5',
         regions,

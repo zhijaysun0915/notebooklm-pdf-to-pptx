@@ -8,7 +8,10 @@ function stripHash(hex: string): string {
 }
 
 /**
- * Exports all included slides as a native editable PowerPoint (.pptx) presentation.
+ * Exports all included slides as a native multi-layer editable PowerPoint (.pptx):
+ * Layer 0: Clean Base Backdrop
+ * Layer 1..N: Independent Movable Graphic Elements (cards, banners, sub-cards, icons, servers)
+ * Top Layer: Native PowerPoint Tables & Editable Text Boxes
  */
 export async function exportSlidesToPptx(
   slides: SlideItem[],
@@ -20,10 +23,9 @@ export async function exportSlidesToPptx(
   const pptx = new PptxGenJS();
   pptx.author = 'SlideUnlock Studio';
   pptx.company = 'Open Source Local Converter';
-  pptx.subject = 'Converted Editable Presentation';
+  pptx.subject = 'Converted Multi-Layer Editable Presentation';
   pptx.title = fileNameBase;
 
-  // Match first slide's aspect ratio so 16:9, 4:3, or A4 PDFs preserve exact geometry
   const ratio = activeSlides[0].aspectRatio || 16 / 9;
   const slideHeightIn = 7.5;
   const slideWidthIn = Number((slideHeightIn * ratio).toFixed(3));
@@ -44,13 +46,22 @@ export async function exportSlidesToPptx(
 
   for (const item of activeSlides) {
     const slide = pptx.addSlide();
+    const hasSplitElements =
+      item.backgroundMode === 'cleaned' &&
+      item.elements &&
+      item.elements.length > 0 &&
+      Boolean(item.baseBackdropDataUrl);
 
-    // 1. Slide Background
+    // 1. Base Slide Backdrop
     if (item.backgroundMode === 'solid') {
       slide.background = { color: stripHash(item.solidBgHex || '#FAF8F5') };
     } else {
       const bgImg =
-        item.backgroundMode === 'original' ? item.originalDataUrl : item.cleanedDataUrl;
+        item.backgroundMode === 'original'
+          ? item.originalDataUrl
+          : hasSplitElements
+            ? item.baseBackdropDataUrl!
+            : item.cleanedDataUrl;
       slide.addImage({
         data: bgImg,
         x: 0,
@@ -60,7 +71,25 @@ export async function exportSlidesToPptx(
       });
     }
 
-    // 2. Native PowerPoint Tables (from NotebookLM Markdown tables)
+    // 2. Independent Movable Graphic Elements (sorted back-to-front by zIndex)
+    if (item.backgroundMode !== 'original' && item.elements && item.elements.length > 0) {
+      const sortedElements = [...item.elements].sort((a, b) => a.zIndex - b.zIndex);
+      for (const el of sortedElements) {
+        const xIn = Number(((el.xPct / 100) * effectiveW).toFixed(3));
+        const yIn = Number(((el.yPct / 100) * effectiveH).toFixed(3));
+        const wIn = Number((Math.max(0.15, (el.wPct / 100) * effectiveW)).toFixed(3));
+        const hIn = Number((Math.max(0.15, (el.hPct / 100) * effectiveH)).toFixed(3));
+        slide.addImage({
+          data: el.dataUrl,
+          x: xIn,
+          y: yIn,
+          w: wIn,
+          h: hIn,
+        });
+      }
+    }
+
+    // 3. Native PowerPoint Tables (from NotebookLM Markdown tables)
     if (item.tables && item.tables.length > 0) {
       for (const tbl of item.tables) {
         const headerCells: PptxGenJS.TableCell[] = tbl.headers.map((h) => ({
@@ -95,13 +124,13 @@ export async function exportSlidesToPptx(
       }
     }
 
-    // 3. Editable PowerPoint Text Boxes
+    // 4. Editable PowerPoint Text Boxes
     for (const reg of item.regions) {
       if (!reg.text.trim()) continue;
       const xIn = Number(((reg.xPct / 100) * effectiveW).toFixed(3));
       const yIn = Number(((reg.yPct / 100) * effectiveH).toFixed(3));
       const wIn = Number((Math.max(0.4, (reg.wPct / 100) * effectiveW)).toFixed(3));
-      const hIn = Number((Math.max(0.25, (reg.hPct / 100) * effectiveH)).toFixed(3));
+      const hIn = Number((Math.max(0.22, (reg.hPct / 100) * effectiveH)).toFixed(3));
 
       const hasFill = reg.bgColor && reg.bgColor !== 'transparent';
 
@@ -133,7 +162,8 @@ export async function exportSlidesToPptx(
 }
 
 /**
- * Exports all included slides as a cleaned & edited high-resolution PDF.
+ * Exports all included slides as a cleaned & edited high-resolution PDF,
+ * compositing the base backdrop, moved/resized graphic layers, and updated text boxes.
  */
 export async function exportSlidesToPdf(
   slides: SlideItem[],
@@ -165,17 +195,40 @@ export async function exportSlidesToPdf(
     canvas.height = item.heightPx;
     const ctx = canvas.getContext('2d')!;
 
+    const hasSplitElements =
+      item.backgroundMode === 'cleaned' &&
+      item.elements &&
+      item.elements.length > 0 &&
+      Boolean(item.baseBackdropDataUrl);
+
     if (item.backgroundMode === 'solid') {
       ctx.fillStyle = item.solidBgHex || '#FAF8F5';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     } else {
       const bgUrl =
-        item.backgroundMode === 'original' ? item.originalDataUrl : item.cleanedDataUrl;
+        item.backgroundMode === 'original'
+          ? item.originalDataUrl
+          : hasSplitElements
+            ? item.baseBackdropDataUrl!
+            : item.cleanedDataUrl;
       const img = await loadImageElement(bgUrl);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     }
 
-    // Render updated text boxes onto the high-res canvas
+    if (item.backgroundMode !== 'original' && item.elements && item.elements.length > 0) {
+      const sortedElements = [...item.elements].sort((a, b) => a.zIndex - b.zIndex);
+      for (const el of sortedElements) {
+        const elImg = await loadImageElement(el.dataUrl);
+        ctx.drawImage(
+          elImg,
+          (el.xPct / 100) * canvas.width,
+          (el.yPct / 100) * canvas.height,
+          (el.wPct / 100) * canvas.width,
+          (el.hPct / 100) * canvas.height
+        );
+      }
+    }
+
     for (const reg of item.regions) {
       if (!reg.text.trim()) continue;
       const x = (reg.xPct / 100) * canvas.width;
@@ -188,7 +241,7 @@ export async function exportSlidesToPdf(
         ctx.fillRect(x, y, w, h);
       }
 
-      const fontPx = Math.round((reg.fontSizePt / 540) * canvas.height * 1.08);
+      const fontPx = Math.round((reg.fontSizePt / 540) * canvas.height * 1.04);
       ctx.font = `${reg.italic ? 'italic ' : ''}${reg.bold ? '700 ' : '400 '}${fontPx}px "${
         reg.fontFamily || 'Noto Sans TC'
       }", sans-serif`;
@@ -196,7 +249,7 @@ export async function exportSlidesToPdf(
       ctx.textBaseline = 'top';
 
       const paragraphs = reg.text.split('\n');
-      let curY = y + 2;
+      let curY = y + 1;
       for (const p of paragraphs) {
         const drawX =
           reg.align === 'center'
@@ -206,11 +259,11 @@ export async function exportSlidesToPdf(
               : x;
         ctx.textAlign = reg.align;
         ctx.fillText(p, drawX, curY, w);
-        curY += fontPx * 1.28;
+        curY += fontPx * 1.24;
       }
     }
 
-    const pageJpg = canvas.toDataURL('image/jpeg', 0.92);
+    const pageJpg = canvas.toDataURL('image/jpeg', 0.93);
     pdf.addImage(pageJpg, 'JPEG', 0, 0, item.widthPx, item.heightPx);
   }
 

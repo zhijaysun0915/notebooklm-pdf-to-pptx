@@ -684,6 +684,125 @@ export async function generateCleanedBackground(
   return canvas.toDataURL('image/jpeg', 0.94);
 }
 
+/**
+ * Fast O(W*H) seamless rectangular patch healer using smoothed perimeter boundary strips
+ * weighted by true pixel distance. Used when peeling segmented cards, bars, icons, and manual slices.
+ */
+export function inpaintSolidPatchOnImageData(
+  imageData: ImageData,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number
+): void {
+  const { width, height, data } = imageData;
+  const rx0 = Math.max(1, Math.floor(x0 - 2));
+  const ry0 = Math.max(1, Math.floor(y0 - 2));
+  const rx1 = Math.min(width - 2, Math.ceil(x1 + 2));
+  const ry1 = Math.min(height - 2, Math.ceil(y1 + 2));
+
+  const rw = rx1 - rx0 + 1;
+  const rh = ry1 - ry0 + 1;
+  if (rw < 2 || rh < 2) return;
+
+  // Build smoothed 1D RGB boundary arrays along top, bottom, left, and right outer 1px borders
+  const sampleSmoothedH = (py: number): Float32Array => {
+    const arr = new Float32Array(rw * 3);
+    const cy = Math.max(0, Math.min(height - 1, py));
+    for (let lx = 0; lx < rw; lx++) {
+      let rS = 0,
+        gS = 0,
+        bS = 0,
+        cnt = 0;
+      for (let d = -4; d <= 4; d += 2) {
+        const cx = Math.max(0, Math.min(width - 1, rx0 + lx + d));
+        const idx = (cy * width + cx) * 4;
+        rS += data[idx];
+        gS += data[idx + 1];
+        bS += data[idx + 2];
+        cnt++;
+      }
+      arr[lx * 3] = rS / cnt;
+      arr[lx * 3 + 1] = gS / cnt;
+      arr[lx * 3 + 2] = bS / cnt;
+    }
+    return arr;
+  };
+
+  const sampleSmoothedV = (px: number): Float32Array => {
+    const arr = new Float32Array(rh * 3);
+    const cx = Math.max(0, Math.min(width - 1, px));
+    for (let ly = 0; ly < rh; ly++) {
+      let rS = 0,
+        gS = 0,
+        bS = 0,
+        cnt = 0;
+      for (let d = -4; d <= 4; d += 2) {
+        const cy = Math.max(0, Math.min(height - 1, ry0 + ly + d));
+        const idx = (cy * width + cx) * 4;
+        rS += data[idx];
+        gS += data[idx + 1];
+        bS += data[idx + 2];
+        cnt++;
+      }
+      arr[ly * 3] = rS / cnt;
+      arr[ly * 3 + 1] = gS / cnt;
+      arr[ly * 3 + 2] = bS / cnt;
+    }
+    return arr;
+  };
+
+  const topStrip = sampleSmoothedH(ry0 - 1);
+  const botStrip = sampleSmoothedH(ry1 + 1);
+  const leftStrip = sampleSmoothedV(rx0 - 1);
+  const rightStrip = sampleSmoothedV(rx1 + 1);
+
+  for (let ly = 0; ly < rh; ly++) {
+    const py = ry0 + ly;
+    const dTop = ly + 1;
+    const dBot = rh - ly;
+    const wTop = 1 / (dTop * dTop);
+    const wBot = 1 / (dBot * dBot);
+
+    const lR = leftStrip[ly * 3];
+    const lG = leftStrip[ly * 3 + 1];
+    const lB = leftStrip[ly * 3 + 2];
+    const rR = rightStrip[ly * 3];
+    const rG = rightStrip[ly * 3 + 1];
+    const rB = rightStrip[ly * 3 + 2];
+
+    for (let lx = 0; lx < rw; lx++) {
+      const px = rx0 + lx;
+      const dLeft = lx + 1;
+      const dRight = rw - lx;
+      const wLeft = 1 / (dLeft * dLeft);
+      const wRight = 1 / (dRight * dRight);
+      const wSum = wTop + wBot + wLeft + wRight;
+
+      const tIdx = lx * 3;
+      const outR =
+        (topStrip[tIdx] * wTop + botStrip[tIdx] * wBot + lR * wLeft + rR * wRight) / wSum;
+      const outG =
+        (topStrip[tIdx + 1] * wTop +
+          botStrip[tIdx + 1] * wBot +
+          lG * wLeft +
+          rG * wRight) /
+        wSum;
+      const outB =
+        (topStrip[tIdx + 2] * wTop +
+          botStrip[tIdx + 2] * wBot +
+          lB * wLeft +
+          rB * wRight) /
+        wSum;
+
+      const pIdx = (py * width + px) * 4;
+      data[pIdx] = Math.round(outR);
+      data[pIdx + 1] = Math.round(outG);
+      data[pIdx + 2] = Math.round(outB);
+    }
+  }
+}
+
 export function loadImageElement(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
