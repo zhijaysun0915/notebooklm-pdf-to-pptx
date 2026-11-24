@@ -894,23 +894,27 @@ button {
 /* Interactive Text Box Overlays */
 .region-box {
   position: absolute;
-  border: 1px dashed rgba(217, 78, 40, 0.55);
-  border-radius: 3px;
+  border: 1px solid transparent;
+  border-radius: 2px;
   cursor: move;
-  transition: border-color 0.1s ease, background-color 0.1s ease;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
   display: flex;
   align-items: flex-start;
-  padding: 1px 3px;
+  padding: 0;
+}
+
+.slide-artboard.show-bounds .region-box {
+  border-color: rgba(217, 78, 40, 0.42);
 }
 
 .region-box:hover {
-  border: 1.5px solid var(--accent-primary);
-  background: rgba(217, 78, 40, 0.06);
+  border: 1px dashed var(--accent-primary);
+  background: rgba(217, 78, 40, 0.08);
 }
 
 .region-box.selected {
-  border: 2px solid var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(217, 78, 40, 0.16);
+  border: 1.5px solid var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(217, 78, 40, 0.22);
   z-index: 12;
 }
 
@@ -919,7 +923,7 @@ button {
   height: 100%;
   white-space: pre-wrap;
   word-break: break-word;
-  line-height: 1.24;
+  line-height: 1.22;
   pointer-events: none;
 }
 

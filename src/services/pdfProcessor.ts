@@ -255,12 +255,18 @@ export async function processImageFiles(
     const objUrl = URL.createObjectURL(file);
     try {
       const img = await loadImageElement(objUrl);
-      const maxDim = 2100;
-      const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+      const longest = Math.max(img.naturalWidth, img.naturalHeight);
+      // Upscale low-res screenshots (e.g. 800-1366px) up to ~1800px so 9px CJK strokes stay sharp for DBNet
+      const scale =
+        longest < 1600
+          ? Math.min(2.2, 1800 / Math.max(1, longest))
+          : Math.min(1, 2200 / longest);
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
       canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
       const ctx = canvas.getContext('2d')!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);

@@ -40,7 +40,7 @@ export function App() {
 
   // Engine & OCR state
   const [engineMode, setEngineMode] = useState<EngineMode>('auto');
-  const [ocrLang, setOcrLang] = useState<OcrLang>('chi_tra+eng');
+  const [ocrLang, setOcrLang] = useState<OcrLang>('v6-small');
   const [geminiKey, setGeminiKey] = useState<string>(
     () => localStorage.getItem(STORAGE_GEMINI_KEY) || ''
   );
@@ -316,17 +316,23 @@ export function App() {
 
                     {engineMode !== 'gemini' && (
                       <label className="field-inline" htmlFor="select-ocr-lang">
-                        <span>{t.ocrLangLabel}：</span>
+                        <span>{locale === 'zh-Hant' ? '本地 AI 模型' : 'Local AI Model'}：</span>
                         <select
                           id="select-ocr-lang"
                           className="select-control"
                           value={ocrLang}
                           onChange={(e) => setOcrLang(e.target.value as OcrLang)}
                         >
-                          <option value="chi_tra+eng">繁體中文 + English</option>
-                          <option value="chi_sim+eng">简体中文 + English</option>
-                          <option value="jpn+eng">日本語 + English</option>
-                          <option value="eng">English Only</option>
+                          <option value="v6-small">
+                            {locale === 'zh-Hant'
+                              ? 'PP-OCRv6 標準高速（繁中/簡中/英/日）'
+                              : 'PP-OCRv6 Small (Fast • CJK + EN)'}
+                          </option>
+                          <option value="v6-medium">
+                            {locale === 'zh-Hant'
+                              ? 'PP-OCRv6 高精度增強（複雜深色圖表推薦）'
+                              : 'PP-OCRv6 Medium (High Precision)'}
+                          </option>
                         </select>
                       </label>
                     )}

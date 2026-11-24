@@ -117,9 +117,9 @@ export async function exportSlidesToPptx(
         italic: reg.italic,
         align: reg.align,
         valign: 'top',
-        margin: 2,
+        margin: 0,
         fill: hasFill ? { color: stripHash(reg.bgColor) } : undefined,
-        breakLine: true,
+        breakLine: reg.text.includes('\n'),
       });
     }
 

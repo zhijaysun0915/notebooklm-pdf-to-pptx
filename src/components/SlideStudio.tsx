@@ -43,6 +43,7 @@ export const SlideStudio: React.FC<SlideStudioProps> = ({
   const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null);
   const [editingRegionId, setEditingRegionId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewLayerMode>('editable');
+  const [showBounds, setShowBounds] = useState(false);
   const [eraserActive, setEraserActive] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [artboardHeight, setArtboardHeight] = useState(495);
@@ -463,6 +464,15 @@ export const SlideStudio: React.FC<SlideStudioProps> = ({
 
             <button
               type="button"
+              className={`btn btn-sm ${showBounds ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setShowBounds((b) => !b)}
+              id="btn-toggle-bounds"
+            >
+              {locale === 'zh-Hant' ? '顯示框線' : 'Show Bounds'}
+            </button>
+
+            <button
+              type="button"
               className="btn btn-secondary btn-sm"
               onClick={handleAddTextBox}
               id="btn-add-textbox"
@@ -528,7 +538,9 @@ export const SlideStudio: React.FC<SlideStudioProps> = ({
         <div className="stage-viewport">
           <div
             ref={artboardRef}
-            className={`slide-artboard ${eraserActive ? 'eraser-cursor' : ''}`}
+            className={`slide-artboard ${eraserActive ? 'eraser-cursor' : ''} ${
+              showBounds ? 'show-bounds' : ''
+            }`}
             style={{
               aspectRatio: `${currentSlide.aspectRatio}`,
               background:
@@ -588,8 +600,8 @@ export const SlideStudio: React.FC<SlideStudioProps> = ({
                 const isSelected = reg.id === selectedRegionId;
                 const isEditing = reg.id === editingRegionId;
                 const scaledPx = Math.max(
-                  9,
-                  Math.round((reg.fontSizePt / 540) * artboardHeight)
+                  5.5,
+                  Number(((reg.fontSizePt / 540) * artboardHeight).toFixed(2))
                 );
 
                 return (
@@ -647,11 +659,12 @@ export const SlideStudio: React.FC<SlideStudioProps> = ({
                         className="region-text-display"
                         style={{
                           fontSize: `${scaledPx}px`,
-                          fontFamily: `"${reg.fontFamily}", "Noto Sans TC", sans-serif`,
+                          fontFamily: `"Plus Jakarta Sans", "${reg.fontFamily}", "Noto Sans TC", sans-serif`,
                           color: reg.color,
                           fontWeight: reg.bold ? 700 : 400,
                           fontStyle: reg.italic ? 'italic' : 'normal',
                           textAlign: reg.align,
+                          whiteSpace: reg.text.includes('\n') ? 'pre-wrap' : 'nowrap',
                         }}
                       >
                         {reg.text}

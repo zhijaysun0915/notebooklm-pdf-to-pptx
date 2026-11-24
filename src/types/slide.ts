@@ -1,5 +1,5 @@
 export type EngineMode = 'auto' | 'ocr' | 'gemini';
-export type OcrLang = 'chi_tra+eng' | 'chi_sim+eng' | 'jpn+eng' | 'eng';
+export type OcrLang = 'v6-small' | 'v6-medium' | 'chi_tra+eng' | 'eng';
 export type SlideThemeId = 'editorial-ivory' | 'slate-executive' | 'forest-research' | 'terracotta-studio';
 
 export interface TextRegion {
@@ -9,6 +9,11 @@ export interface TextRegion {
   yPct: number;
   wPct: number;
   hPct: number;
+  /** Exact original tight pixel bounds (%) used for clean background stroke removal */
+  eraseXPct?: number;
+  eraseYPct?: number;
+  eraseWPct?: number;
+  eraseHPct?: number;
   fontSizePt: number;
   fontFamily: string;
   color: string;
